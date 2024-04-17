@@ -1,9 +1,8 @@
 import streamlit as st
 from google.oauth2 import service_account
 import vertexai
-from vertexai.generative_models import GenerativeModel, Part, FinishReason
+from vertexai.generative_models import GenerativeModel, Part
 import vertexai.preview.generative_models as generative_models
-import base64
 
 # Load the service account credentials from Streamlit secrets
 service_account_info = {
@@ -44,40 +43,41 @@ safety_settings = {
 }
 
 # Set up the Streamlit app
-st.title("Vertex AI Text Generation")
+st.title("Vertex AI Conversational Agent")
 
-# Initialize the chat
-chat = model.start_chat()
+# Initialize the chat session
+if 'chat' not in st.session_state:
+    st.session_state.chat = model.start_chat()
 
-# Store the conversation history
-conversation_history = []
+# Initialize the conversation history
+if 'conversation_history' not in st.session_state:
+    st.session_state.conversation_history = []
 
 # Get the user input
-text_input = st.text_input("Enter your message:")
+user_input = st.text_input("Enter your text:")
 
-# Generate text when the user clicks the button
-if st.button("Send Message"):
-    if text_input:
+# Handle the conversation when the user clicks the button
+if st.button("Send"):
+    if user_input:
         try:
-            # Add the user's message to the conversation history
-            conversation_history.append(text_input)
+            # Add the user's input to the conversation history
+            st.session_state.conversation_history.append(user_input)
 
-            # Generate a response from the AI
-            response = chat.send_message(
-                [text_input],
+            # Generate a response from the AI using the conversation history
+            response = st.session_state.chat.send_message(
+                st.session_state.conversation_history,
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
 
             # Add the AI's response to the conversation history
-            conversation_history.append(response.text)
+            st.session_state.conversation_history.append(response.text)
 
             # Display the conversation history
-            st.success("Conversation:")
-            for message in conversation_history:
+            for message in st.session_state.conversation_history:
                 st.write(message)
 
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
     else:
-        st.warning("Please enter a message.")
+        st.warning("Please enter some text.")
