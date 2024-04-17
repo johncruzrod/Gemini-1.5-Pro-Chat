@@ -43,41 +43,39 @@ safety_settings = {
 }
 
 # Set up the Streamlit app
-st.title("Vertex AI Conversational Agent")
+st.title('Chat with Gemini')
 
-# Initialize the chat session
 if 'chat' not in st.session_state:
     st.session_state.chat = model.start_chat()
 
-# Initialize the conversation history
-if 'conversation_history' not in st.session_state:
-    st.session_state.conversation_history = []
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# Get the user input
-user_input = st.text_input("Enter your text:")
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-# Handle the conversation when the user clicks the button
-if st.button("Send"):
-    if user_input:
-        try:
-            # Add the user's input to the conversation history
-            st.session_state.conversation_history.append(user_input)
+user_input = st.chat_input("What is up?")
 
-            # Generate a response from the AI using the conversation history
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    with st.chat_message("assistant"):
+        with st.spinner('Waiting for the assistant to respond...'):
             response = st.session_state.chat.send_message(
-                st.session_state.conversation_history,
+                st.session_state.messages,
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
 
-            # Add the AI's response to the conversation history
-            st.session_state.conversation_history.append(response.text)
+            if isinstance(response, str):
+                st.error(response)
+            else:
+                # Extract the text value from the response
+                response_text = response.text
+                st.markdown(response_text)
 
-            # Display the conversation history
-            for message in st.session_state.conversation_history:
-                st.write(message)
-
-        except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
-    else:
-        st.warning("Please enter some text.")
+                # Append only the assistant's response to the messages list
+                st.session_state.messages.append({"role": "assistant", "content": response_text})
