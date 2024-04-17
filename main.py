@@ -64,8 +64,11 @@ if user_input:
 
     with st.chat_message("assistant"):
         with st.spinner('Waiting for the assistant to respond...'):
+            # Convert the conversation history into a list of strings
+            conversation_history = [f"{message['role']}: {message['content']}" for message in st.session_state.messages]
+
             response = st.session_state.chat.send_message(
-                st.session_state.messages,
+                conversation_history,
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
