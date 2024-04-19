@@ -3,6 +3,8 @@ from google.oauth2 import service_account
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
 import vertexai.preview.generative_models as generative_models
+from io import BytesIO
+from PIL import Image
 
 # Load the service account credentials from Streamlit secrets
 service_account_info = {
@@ -55,20 +57,33 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-user_input = st.chat_input("What is up?")
+# Set up the system prompt
+system_prompt = "You are a helpful assistant."
 
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
+user_input = st.text_input("What is up?")
+uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+
+if user_input or uploaded_file:
     with st.chat_message("user"):
         st.markdown(user_input)
+        if uploaded_file:
+            image = Image.open(uploaded_file)
+            st.image(image, width=200)  # Adjust the width as needed
 
     with st.chat_message("assistant"):
         with st.spinner('Waiting for the assistant to respond...'):
             # Convert the conversation history into a list of strings
             conversation_history = [f"{message['role']}: {message['content']}" for message in st.session_state.messages]
 
+            # Prepare the contents list
+            contents = [system_prompt, user_input]
+            if uploaded_file:
+                image_bytes = BytesIO(uploaded_file.read())
+                image_file = Part.from_bytes(image_bytes.getvalue(), mime_type=uploaded_file.type)
+                contents.append(image_file)
+
             response = st.session_state.chat.send_message(
-                conversation_history,
+                contents,
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
@@ -80,5 +95,6 @@ if user_input:
                 response_text = response.text
                 st.markdown(response_text)
 
-                # Append only the assistant's response to the messages list
+                # Append the user's input and the assistant's response to the messages list
+                st.session_state.messages.append({"role": "user", "content": user_input})
                 st.session_state.messages.append({"role": "assistant", "content": response_text})
