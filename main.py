@@ -2,58 +2,41 @@ import streamlit as st
 from google.oauth2 import service_account
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
-from io import BytesIO
 
-# Load the service account credentials from Streamlit secrets
-service_account_info = {
-    "type": st.secrets["gcp"]["type"],
-    "project_id": st.secrets["gcp"]["project_id"],
-    "private_key_id": st.secrets["gcp"]["private_key_id"],
-    "private_key": st.secrets["gcp"]["private_key"],
-    "client_email": st.secrets["gcp"]["client_email"],
-    "client_id": st.secrets["gcp"]["client_id"],
-    "auth_uri": st.secrets["gcp"]["auth_uri"],
-    "token_uri": st.secrets["gcp"]["token_uri"],
-    "auth_provider_x509_cert_url": st.secrets["gcp"]["auth_provider_x509_cert_url"],
-    "client_x509_cert_url": st.secrets["gcp"]["client_x509_cert_url"]
-}
+# Initialize Streamlit app
+st.title("Multimodal Gemini 1.5 Pro Interface")
 
-# Create credentials object from the service account info
-credentials = service_account.Credentials.from_service_account_info(service_account_info)
+# Load the service account credentials
+credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
 
-# Initialize the Vertex AI SDK with the credentials
-vertexai.init(project=service_account_info["project_id"], location="us-central1", credentials=credentials)
+# Initialize the Vertex AI SDK
+vertexai.init(project=st.secrets["gcp"]["project_id"], location="us-central1", credentials=credentials)
 
 # Load the model
 model = GenerativeModel("gemini-1.5-pro-preview-0409")
 
-# Set up the Streamlit app
-st.title('Chat with Gemini')
+# File uploaders for video and image
+video_file = st.file_uploader("Upload Video", type=['mp4'])
+image_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
 
-user_input = st.text_input("What is up?")
-uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+# Text prompt for context and questions
+prompt = st.text_area("Enter your questions and context here", """
+Watch each frame in the video carefully and answer the questions.
+Only base your answers strictly on what information is available in the video attached.
+Do not make up any information that is not part of the video and do not be too verbose, be to the point.
 
-if user_input or uploaded_file:
-    with st.chat_message("user"):
-        st.markdown(user_input)
-        if uploaded_file:
-            st.image(uploaded_file, width=200)  # Adjust the width as needed
+Questions:
+- When is the moment in the image happening in the video? Provide a timestamp.
+- What is the context of the moment and what does the narrator say about it?
+""")
 
-    with st.chat_message("assistant"):
-        with st.spinner('Waiting for the assistant to respond...'):
-            # Prepare the contents list
-            contents = [user_input]
-
-            if uploaded_file:
-                image_bytes = BytesIO(uploaded_file.read())
-                image_file = Part.from_bytes(image_bytes.getvalue(), mime_type=uploaded_file.type)
-                contents.append(image_file)
-
-            response = model.generate_content(contents)
-
-            if isinstance(response, str):
-                st.error(response)
-            else:
-                # Extract the text value from the response
-                response_text = response.text
-                st.markdown(response_text)
+# Process and generate content when button is clicked
+if st.button('Generate Content'):
+    if video_file and image_file:
+        video_part = Part.from_file(video_file, mime_type="video/mp4")
+        image_part = Part.from_file(image_file, mime_type="image/png")
+        contents = [video_part, image_part, prompt]
+        response = model.generate_content(contents)
+        st.write(response.text)
+    else:
+        st.error("Please upload both video and image files.")
