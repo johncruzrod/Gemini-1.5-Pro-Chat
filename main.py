@@ -15,28 +15,33 @@ vertexai.init(project=st.secrets["gcp"]["project_id"], location="us-central1", c
 # Load the model
 model = GenerativeModel("gemini-1.5-pro-preview-0409")
 
-# File uploaders for video and image
-video_file = st.file_uploader("Upload Video", type=['mp4'])
-image_file = st.file_uploader("Upload Image", type=['png', 'jpg', 'jpeg'])
-
 # Text prompt for context and questions
-prompt = st.text_area("Enter your questions and context here", """
-Watch each frame in the video carefully and answer the questions.
-Only base your answers strictly on what information is available in the video attached.
-Do not make up any information that is not part of the video and do not be too verbose, be to the point.
+user_prompt = st.text_input("Ask a question or describe your request")
 
-Questions:
-- When is the moment in the image happening in the video? Provide a timestamp.
-- What is the context of the moment and what does the narrator say about it?
-""")
+# File uploaders for video, image, and PDF
+uploaded_files = st.file_uploader(
+    "Upload Video, Image, or PDF", 
+    type=['mp4', 'png', 'jpg', 'jpeg', 'pdf'], 
+    accept_multiple_files=True
+)
 
 # Process and generate content when button is clicked
 if st.button('Generate Content'):
-    if video_file and image_file:
-        video_part = Part.from_file(video_file, mime_type="video/mp4")
-        image_part = Part.from_file(image_file, mime_type="image/png")
-        contents = [video_part, image_part, prompt]
+    contents = []
+    
+    # Add the uploaded files to contents if any
+    for uploaded_file in uploaded_files:
+        if uploaded_file is not None:
+            mime_type = "application/pdf" if uploaded_file.type == "application/pdf" else uploaded_file.type
+            part = Part.from_file(uploaded_file, mime_type=mime_type)
+            contents.append(part)
+            
+    # Add the user prompt to contents
+    if user_prompt:
+        contents.append(user_prompt)
+    
+    if contents:  # Check if there is anything to process
         response = model.generate_content(contents)
         st.write(response.text)
     else:
-        st.error("Please upload both video and image files.")
+        st.error("Please upload a file and/or enter a text prompt.")
