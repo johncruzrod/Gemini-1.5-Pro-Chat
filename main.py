@@ -2,46 +2,83 @@ import streamlit as st
 from google.oauth2 import service_account
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
+import vertexai.preview.generative_models as generative_models
 
-# Initialize Streamlit app
-st.title("Multimodal Gemini 1.5 Pro Interface")
+# Load the service account credentials from Streamlit secrets
+service_account_info = {
+    "type": st.secrets["gcp"]["type"],
+    "project_id": st.secrets["gcp"]["project_id"],
+    "private_key_id": st.secrets["gcp"]["private_key_id"],
+    "private_key": st.secrets["gcp"]["private_key"],
+    "client_email": st.secrets["gcp"]["client_email"],
+    "client_id": st.secrets["gcp"]["client_id"],
+    "auth_uri": st.secrets["gcp"]["auth_uri"],
+    "token_uri": st.secrets["gcp"]["token_uri"],
+    "auth_provider_x509_cert_url": st.secrets["gcp"]["auth_provider_x509_cert_url"],
+    "client_x509_cert_url": st.secrets["gcp"]["client_x509_cert_url"]
+}
 
-# Load the service account credentials
-credentials = service_account.Credentials.from_service_account_info(st.secrets["gcp"])
+# Create credentials object from the service account info
+credentials = service_account.Credentials.from_service_account_info(service_account_info)
 
-# Initialize the Vertex AI SDK
-vertexai.init(project=st.secrets["gcp"]["project_id"], location="us-central1", credentials=credentials)
+# Initialize the Vertex AI SDK with the credentials
+vertexai.init(project=service_account_info["project_id"], location="us-central1", credentials=credentials)
 
 # Load the model
 model = GenerativeModel("gemini-1.5-pro-preview-0409")
 
-# Text prompt for context and questions
-user_prompt = st.text_input("Ask a question or describe your request")
+# Set up the generation configuration
+generation_config = {
+    "max_output_tokens": 8192,
+    "temperature": 1,
+    "top_p": 0.95,
+}
 
-# File uploaders for video, image, and PDF
-uploaded_files = st.file_uploader(
-    "Upload Video, Image, or PDF", 
-    type=['mp4', 'png', 'jpg', 'jpeg', 'pdf'], 
-    accept_multiple_files=True
-)
+# Set up the safety settings
+safety_settings = {
+    generative_models.HarmCategory.HARM_CATEGORY_HATE_SPEECH: generative_models.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    generative_models.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: generative_models.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    generative_models.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: generative_models.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    generative_models.HarmCategory.HARM_CATEGORY_HARASSMENT: generative_models.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+}
 
-# Process and generate content when button is clicked
-if st.button('Generate Content'):
-    contents = []
-    
-    # Add the uploaded files to contents if any
-    for uploaded_file in uploaded_files:
-        if uploaded_file is not None:
-            mime_type = "application/pdf" if uploaded_file.type == "application/pdf" else uploaded_file.type
-            part = Part.from_file(uploaded_file, mime_type=mime_type)
-            contents.append(part)
-            
-    # Add the user prompt to contents
-    if user_prompt:
-        contents.append(user_prompt)
-    
-    if contents:  # Check if there is anything to process
-        response = model.generate_content(contents)
-        st.write(response.text)
-    else:
-        st.error("Please upload a file and/or enter a text prompt.")
+# Set up the Streamlit app
+st.title('Chat with Gemini')
+
+if 'chat' not in st.session_state:
+    st.session_state.chat = model.start_chat()
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+user_input = st.chat_input("What is up?")
+
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    with st.chat_message("assistant"):
+        with st.spinner('Waiting for the assistant to respond...'):
+            # Convert the conversation history into a list of strings
+            conversation_history = [f"{message['role']}: {message['content']}" for message in st.session_state.messages]
+
+            response = st.session_state.chat.send_message(
+                conversation_history,
+                generation_config=generation_config,
+                safety_settings=safety_settings
+            )
+
+            if isinstance(response, str):
+                st.error(response)
+            else:
+                # Extract the text value from the response
+                response_text = response.text
+                st.markdown(response_text)
+
+                # Append only the assistant's response to the messages list
+                st.session_state.messages.append({"role": "assistant", "content": response_text})
