@@ -42,11 +42,6 @@ safety_settings = {
     generative_models.HarmCategory.HARM_CATEGORY_HARASSMENT: generative_models.HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
 }
 
-# Streamlit UI setup
-st.set_page_config(layout="wide")
-col1, col2, col3 = st.columns([1, 8, 1])
-
-
 
 st.title('Chat with Gemini')
 if 'gemini_chat' not in st.session_state:
